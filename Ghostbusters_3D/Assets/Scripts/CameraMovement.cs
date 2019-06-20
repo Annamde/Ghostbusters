@@ -4,34 +4,35 @@ using UnityEngine;
 
 public class CameraMovement : MonoBehaviour
 {
-    public Transform lookAt;
+    GameObject player;
+
     public float maxY;
     public float minY;
     public float speed;
 
-    float distance = 10;
     float yaw = 0.0f;
     float pitch = 0.0f;
 
     private void Start()
     {
-        yaw = transform.localRotation.eulerAngles.y;
-        pitch = transform.localRotation.eulerAngles.x;
+        player = transform.parent.gameObject;
+        transform.forward = player.transform.forward;
+        pitch = transform.rotation.eulerAngles.x;
+        yaw = player.transform.eulerAngles.y;
     }
 
     private void Update()
     {
-        yaw += Input.GetAxis("Mouse X") * speed * Time.deltaTime;
-        pitch += Input.GetAxis("Mouse Y") * speed * Time.deltaTime;
-
-        pitch = Mathf.Clamp(pitch, minY, maxY);
+        CameraRotation();
     }
 
-    private void LateUpdate()
+    void CameraRotation()
     {
-        Vector3 dir = new Vector3(0, 0, -distance);
-        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
-        transform.position = lookAt.position + rotation * dir;
-        transform.LookAt(lookAt.position);
+        pitch += Input.GetAxis("Camera Y") * speed * Time.deltaTime;
+        pitch = Mathf.Clamp(pitch, minY, maxY);
+        transform.localRotation = Quaternion.Euler(pitch, 0, 0);
+
+        yaw += Input.GetAxis("Camera X") * speed * Time.deltaTime;
+        player.transform.rotation = Quaternion.Euler(0, yaw, 0);
     }
 }

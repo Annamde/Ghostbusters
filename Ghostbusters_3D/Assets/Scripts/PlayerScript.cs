@@ -1,92 +1,48 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class PlayerScript : MonoBehaviour
 {
-    public Text lifeText, startsCounterText;
-    public Image key;
+    GameManager gameManager;
+    [HideInInspector] public CharacterController characterController;
 
-    CharacterController characterController;
-    public float speed;
+    [HideInInspector] public Vector3 startPos;
+    [HideInInspector] public Quaternion startRot;
 
-    public bool glasses = false;
-
-    public Image blood;
-    public float bloodTime = 1.0f;
-    bool bloodActive;
-    float bloodCounter = 0.0f;
-
-    float maxLife = 100;
-    public float currentLife;
-
-    public GameObject door1, door2, door3;
-
-    float keys = 0;
-    float checkpoints = 0;
-
-    Vector3 startPos;
-    Quaternion startRot;
-
-    public float jumpSpeed = 8.0F;
-    public float gravity = 10.0F;
+    float speed;
+    public float walkSpeed;
+    public float runSpeed;
+    public float jumpSpeed;
+    public float gravity;
+    public float catchDistance;
 
     Vector3 movement = Vector3.zero;
 
-    int starsCounter;
-
     private void Start()
     {
-        currentLife = maxLife;
-        lifeText.text = "Life: " + currentLife;
-        starsCounter = 0;
-        startsCounterText.text = "" + starsCounter;
-
-        key.enabled = false;
-
+        gameManager = GameManager.Instance;
+        characterController = GetComponent<CharacterController>();
+        
         startPos = transform.position;
         startRot = transform.rotation;
-        Cursor.visible = false;
-        Cursor.lockState = CursorLockMode.Locked;
-        characterController = GetComponent<CharacterController>();
-
-        blood.enabled = false;
-        bloodActive = false;
     }
 
     private void Update()
     {
         Move();
 
-        if (bloodActive)
-        {
-            bloodCounter += Time.deltaTime;
-        }
-
-        if (bloodCounter >= bloodTime)
-        {
-            blood.enabled = false;
-            bloodActive = false;
-            bloodCounter = 0.0f;
-        }
-
-        if (Input.GetKeyDown(KeyCode.C))
-        {
-            if (glasses)
-                glasses = false;
-            else
-                glasses = true;
-        }
-
-        if (Input.GetMouseButtonDown(0))
-        {
+        if (Input.GetButtonDown("Fire"))
             Shoot();
-        }
+
     }
 
     public void Move()
     {
+        speed = walkSpeed;
+
+        if (Input.GetButton("Run"))
+            speed = runSpeed;
 
         if (characterController.isGrounded)
         {
@@ -104,44 +60,28 @@ public class PlayerScript : MonoBehaviour
                 right.Normalize();
 
                 movement = forward * zMovement + right * xMovement;
-                transform.localRotation = Quaternion.LookRotation(movement);
-
             }
 
-            if (Input.GetButton("Jump"))
+            if (Input.GetButtonDown("Jump"))
                 movement.y = jumpSpeed;
         }
 
-        else
-            movement.y -= gravity * Time.deltaTime;
+        movement.y -= gravity * Time.deltaTime;
 
-        characterController.Move(movement.normalized * speed * Time.deltaTime);
-    }
-
-    public void GetHurt()
-    {
-        currentLife -= 15;
-
-        if (currentLife <= 0)
-        {
-            Die();
-        }
-        else
-        {
-            blood.enabled = true;
-            bloodActive = true;
-        }
-
-        lifeText.text = "Life: " + currentLife;
+        characterController.Move(movement * speed * Time.deltaTime);
     }
 
     public void Shoot()
     {
+        Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         RaycastHit hit;
-        if (Physics.Raycast(new Ray(transform.position, transform.forward), out hit, 10.0f))
+
+        if (Physics.Raycast(ray, out hit, catchDistance))
         {
             if (hit.collider.tag == "Ghost")
-                hit.collider.gameObject.GetComponent<GhostScript>().Die();
+            {
+                hit.collider.gameObject.GetComponent<GhostScript>().Die(); //mantener rayo en fantasmas e ir quitando vida
+            }
         }
     }
 
@@ -149,44 +89,34 @@ public class PlayerScript : MonoBehaviour
     {
         if (other.tag == "Star")
         {
-            starsCounter++;
-            startsCounterText.text = "" + starsCounter;
+            gameManager.starsCounter++;
+            gameManager.starsCounterText.text = "" + gameManager.starsCounter;
             Destroy(other.gameObject);
         }
 
         if (other.tag == "Key")
         {
-            key.enabled = true;
-            keys++;
-            if (keys == 1) door1.SetActive(false);
-            if (keys == 2) door2.SetActive(false);
-            if (keys == 3) door3.SetActive(false);
+            gameManager.key.enabled = true;
+            gameManager.keys++;
+            if (gameManager.keys == 1) gameManager.door1.SetActive(false);
+            if (gameManager.keys == 2) gameManager.door2.SetActive(false);
+            if (gameManager.keys == 3) gameManager.door3.SetActive(false);
 
             Destroy(other.gameObject);
         }
 
         if (other.tag == "Checkpoint")
         {
-            key.enabled = false;
+            gameManager.key.enabled = false;
             startPos = transform.position;
-            startRot = transform.rotation;
+            startRot = transform.localRotation;
 
             other.gameObject.SetActive(false);
-            checkpoints++;
+            gameManager.checkpoints++;
 
-            if (checkpoints == 1) door1.SetActive(true);
-            if (checkpoints == 2) door2.SetActive(true);
-            if (checkpoints == 3) door3.SetActive(true);
+            if (gameManager.checkpoints == 1) gameManager.door1.SetActive(true);
+            if (gameManager.checkpoints == 2) gameManager.door2.SetActive(true);
+            if (gameManager.checkpoints == 3) gameManager.door3.SetActive(true);
         }
     }
-
-    void Die()
-    {
-        characterController.enabled = false;
-        transform.position = startPos;
-        transform.rotation = startRot;
-        currentLife = maxLife;
-        characterController.enabled = true;
-    }
-
 }

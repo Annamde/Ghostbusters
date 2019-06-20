@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class GhostScript : MonoBehaviour
+public class GhostScript : MonoBehaviour, IGhostMaterial
 {
+    GameManager gameManager;
+
     public GameObject keyPrefab;
 
     public float chaseDistance;
@@ -13,7 +15,8 @@ public class GhostScript : MonoBehaviour
     float attackTimer = 0.0f;
     public float attackCoolDown;
 
-    GameObject player;
+    public GameObject player;
+    PlayerScript playerScript;
 
     public enum State { patrol, chase, attack }
     public State currentState = State.patrol;
@@ -27,39 +30,84 @@ public class GhostScript : MonoBehaviour
 
     public float alphaSpeed;
 
+    Vector3 startPosition, gotoPosition;
+
+    public float playerDamage;
+
+    bool changeAlpha = true;
+
     void Start()
     {
         player = GameObject.FindGameObjectWithTag("Player");
+        playerScript = player.GetComponent<PlayerScript>();
+
+        gameManager = GameManager.Instance;
+        gameManager.AddGhostMaterial(this);
+
+        startPosition = transform.localPosition;
         agent = GetComponent<NavMeshAgent>();
-        //mat = GetComponent<Renderer>().material;
         mat = ghost.material;
+
+        ChangeState(State.patrol);
     }
 
     void Update()
     {
-        switch (currentState)
+        UpdateState();
+
+        if(changeAlpha)
+        {
+            alpha = Mathf.Abs(Mathf.Sin(Time.time * alphaSpeed));
+            mat.color = new Color(mat.color.r, mat.color.g, mat.color.b, alpha);
+        }
+    }
+
+    void ChangeState(State newState)
+    {
+        switch(newState)
+        {
+            case State.patrol:
+                agent.isStopped = false;
+                gotoPosition = RandomNavmeshLocation(5f);
+                agent.SetDestination(gotoPosition);
+                break;
+            case State.chase:
+                agent.isStopped = false;
+                break;
+            case State.attack:
+                attackTimer = 0;
+                agent.isStopped = true;
+                break;
+        }
+
+        currentState = newState;
+    }
+
+   void UpdateState()
+    {
+        switch(currentState)
         {
             case State.patrol:
                 if (Vector3.Distance(transform.position, player.transform.position) <= chaseDistance)
                 {
-                    currentState = State.chase;
+                    ChangeState(State.chase);
                     break;
                 }
-                else Patrol();
+                else
+                    Patrol();
 
                 break;
 
             case State.chase:
                 if (Vector3.Distance(transform.position, player.transform.position) > chaseDistance)
                 {
-                    currentState = State.patrol;
+                    ChangeState(State.patrol);
                     break;
                 }
 
                 else if (Vector3.Distance(transform.position, player.transform.position) <= attackDistance)
                 {
-                    attackTimer = 0;
-                    currentState = State.attack;
+                    ChangeState(State.attack);
                     break;
                 }
 
@@ -69,11 +117,9 @@ public class GhostScript : MonoBehaviour
                 break;
 
             case State.attack:
-                transform.LookAt(new Vector3(player.transform.position.x, transform.position.y, player.transform.position.z));
-
                 if (Vector3.Distance(transform.position, player.transform.position) > attackDistance)
                 {
-                    currentState = State.chase;
+                    ChangeState(State.chase);
                     break;
                 }
 
@@ -81,45 +127,36 @@ public class GhostScript : MonoBehaviour
                     Attack();
                 break;
         }
-
-        if(!player.GetComponent<PlayerScript>().glasses)
-        {
-            alpha = Mathf.Abs(Mathf.Sin(Time.time * alphaSpeed));
-        }
-
-        else
-        {
-            alpha = 1;
-        }
-            mat.color = new Color(mat.color.r, mat.color.g, mat.color.b, alpha);
     }
 
+    #region Update States
     public void Patrol()
     {
-        agent.isStopped = false;
-
-        agent.SetDestination(RandomNavmeshLocation(10f));
+        if(Vector3.Distance(this.transform.position, gotoPosition) <= 2f)
+        {
+            gotoPosition = RandomNavmeshLocation(5f);
+            agent.SetDestination(gotoPosition);
+        }
     }
 
     public void Chase()
     {
-        agent.isStopped = false;
-
         agent.SetDestination(player.transform.position);
     }
 
     public void Attack()
     {
-        agent.isStopped = true; 
+        transform.LookAt(new Vector3(player.transform.position.x, transform.position.y, player.transform.position.z));
 
         attackTimer += Time.deltaTime;
 
         if (attackTimer >= attackCoolDown)
         {
             attackTimer = 0;
-            player.GetComponent<PlayerScript>().GetHurt();
+            gameManager.GetHurt(playerDamage);
         }
     }
+    #endregion
 
     public void Die()
     {
@@ -138,10 +175,25 @@ public class GhostScript : MonoBehaviour
         NavMeshHit hit;
         Vector3 finalPosition = Vector3.zero;
 
-        if (NavMesh.SamplePosition(randomDirection, out hit, radius, 1))
+        if (NavMesh.SamplePosition(randomDirection, out hit, radius, NavMesh.AllAreas))
         {
             finalPosition = hit.position;
         }
+
         return finalPosition;
     }
+
+    #region IGhostMaterial
+    public void ChangeMaterialToGlasses()
+    {
+        changeAlpha = false;
+        alpha = 1;
+        mat.color = new Color(mat.color.r, mat.color.g, mat.color.b, alpha);
+    }
+
+    public void ChangeMaterialToNonGlasses()
+    {
+        changeAlpha = true;
+    }
+    #endregion
 }
