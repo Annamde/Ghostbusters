@@ -1,41 +1,93 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PlayerScript : MonoBehaviour
 {
-    GameManager gameManager;
+    public Text lifeText, startsCounterText;
+    public Image key;
+
     CharacterController characterController;
+    public float speed;
+
+    public bool glasses = false;
+
+    public Image blood;
+    public float bloodTime = 1.0f;
+    bool bloodActive;
+    float bloodCounter = 0.0f;
+
+    float maxLife = 100;
+    public float currentLife;
+
+    public GameObject door1, door2, door3;
+
+    float keys = 0;
+    float checkpoints = 0;
 
     Vector3 startPos;
     Quaternion startRot;
 
-    public float speed;
-    public float jumpSpeed;
-    public float gravity;
-    public float catchDistance;
+    public float jumpSpeed = 8.0F;
+    public float gravity = 10.0F;
 
     Vector3 movement = Vector3.zero;
 
+    int starsCounter;
+
     private void Start()
     {
-        gameManager = GameManager.Instance;
-        characterController = GetComponent<CharacterController>();
-        
+        currentLife = maxLife;
+        lifeText.text = "Life: " + currentLife;
+        starsCounter = 0;
+        startsCounterText.text = "" + starsCounter;
+
+        key.enabled = false;
+
         startPos = transform.position;
         startRot = transform.rotation;
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
+        characterController = GetComponent<CharacterController>();
+
+        blood.enabled = false;
+        bloodActive = false;
     }
 
     private void Update()
     {
         Move();
 
-        if (Input.GetButtonDown("Fire"))
+        if (bloodActive)
+        {
+            bloodCounter += Time.deltaTime;
+        }
+
+        if (bloodCounter >= bloodTime)
+        {
+            blood.enabled = false;
+            bloodActive = false;
+            bloodCounter = 0.0f;
+        }
+
+        if (Input.GetKeyDown(KeyCode.C))
+        {
+            if (glasses)
+                glasses = false;
+            else
+                glasses = true;
+        }
+
+        if (Input.GetMouseButtonDown(0))
+        {
             Shoot();
+        }
     }
 
     public void Move()
     {
+
         if (characterController.isGrounded)
         {
             movement = Vector3.zero;
@@ -52,28 +104,44 @@ public class PlayerScript : MonoBehaviour
                 right.Normalize();
 
                 movement = forward * zMovement + right * xMovement;
+                transform.localRotation = Quaternion.LookRotation(movement);
+
             }
 
-            if (Input.GetButtonDown("Jump"))
+            if (Input.GetButton("Jump"))
                 movement.y = jumpSpeed;
         }
 
-        movement.y -= gravity * Time.deltaTime;
+        else
+            movement.y -= gravity * Time.deltaTime;
 
-        characterController.Move(movement * speed * Time.deltaTime);
+        characterController.Move(movement.normalized * speed * Time.deltaTime);
+    }
+
+    public void GetHurt()
+    {
+        currentLife -= 15;
+
+        if (currentLife <= 0)
+        {
+            Die();
+        }
+        else
+        {
+            blood.enabled = true;
+            bloodActive = true;
+        }
+
+        lifeText.text = "Life: " + currentLife;
     }
 
     public void Shoot()
     {
-        Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         RaycastHit hit;
-
-        if (Physics.Raycast(ray, out hit, catchDistance))
+        if (Physics.Raycast(new Ray(transform.position, transform.forward), out hit, 10.0f))
         {
             if (hit.collider.tag == "Ghost")
-            {
-                hit.collider.gameObject.GetComponent<GhostScript>().Die(); //mantener rayo en fantasmas e ir quitando vida
-            }
+                hit.collider.gameObject.GetComponent<GhostScript>().Die();
         }
     }
 
@@ -81,34 +149,44 @@ public class PlayerScript : MonoBehaviour
     {
         if (other.tag == "Star")
         {
-            gameManager.starsCounter++;
-            gameManager.starsCounterText.text = "" + gameManager.starsCounter;
+            starsCounter++;
+            startsCounterText.text = "" + starsCounter;
             Destroy(other.gameObject);
         }
 
         if (other.tag == "Key")
         {
-            gameManager.key.enabled = true;
-            gameManager.keys++;
-            if (gameManager.keys == 1) gameManager.door1.SetActive(false);
-            if (gameManager.keys == 2) gameManager.door2.SetActive(false);
-            if (gameManager.keys == 3) gameManager.door3.SetActive(false);
+            key.enabled = true;
+            keys++;
+            if (keys == 1) door1.SetActive(false);
+            if (keys == 2) door2.SetActive(false);
+            if (keys == 3) door3.SetActive(false);
 
             Destroy(other.gameObject);
         }
 
         if (other.tag == "Checkpoint")
         {
-            gameManager.key.enabled = false;
+            key.enabled = false;
             startPos = transform.position;
             startRot = transform.rotation;
 
             other.gameObject.SetActive(false);
-            gameManager.checkpoints++;
+            checkpoints++;
 
-            if (gameManager.checkpoints == 1) gameManager.door1.SetActive(true);
-            if (gameManager.checkpoints == 2) gameManager.door2.SetActive(true);
-            if (gameManager.checkpoints == 3) gameManager.door3.SetActive(true);
+            if (checkpoints == 1) door1.SetActive(true);
+            if (checkpoints == 2) door2.SetActive(true);
+            if (checkpoints == 3) door3.SetActive(true);
         }
     }
+
+    void Die()
+    {
+        characterController.enabled = false;
+        transform.position = startPos;
+        transform.rotation = startRot;
+        currentLife = maxLife;
+        characterController.enabled = true;
+    }
+
 }
