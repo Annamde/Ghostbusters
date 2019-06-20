@@ -14,6 +14,7 @@ public class GhostScript : MonoBehaviour
     public float attackCoolDown;
 
     GameObject player;
+    PlayerScript playerScript;
 
     public enum State { patrol, chase, attack }
     public State currentState = State.patrol;
@@ -27,16 +28,23 @@ public class GhostScript : MonoBehaviour
 
     public float alphaSpeed;
 
+    Vector3 startPosition;
+
+    float playerDamage;
+
     void Start()
     {
+        startPosition = transform.localPosition;
         player = GameObject.FindGameObjectWithTag("Player");
+        playerScript = player.GetComponent<PlayerScript>();
         agent = GetComponent<NavMeshAgent>();
-        //mat = GetComponent<Renderer>().material;
         mat = ghost.material;
     }
 
     void Update()
     {
+        transform.localPosition = startPosition + new Vector3(0.0f, Mathf.Sin(Time.time * 3f) * 0.05f, 0.0f);
+
         switch (currentState)
         {
             case State.patrol:
@@ -82,7 +90,7 @@ public class GhostScript : MonoBehaviour
                 break;
         }
 
-        if(!player.GetComponent<PlayerScript>().glasses)
+        if(!GameManager.Instance.glasses)
         {
             alpha = Mathf.Abs(Mathf.Sin(Time.time * alphaSpeed));
         }
@@ -117,7 +125,7 @@ public class GhostScript : MonoBehaviour
         if (attackTimer >= attackCoolDown)
         {
             attackTimer = 0;
-            player.GetComponent<PlayerScript>().GetHurt();
+            GameManager.Instance.GetHurt(playerDamage);
         }
     }
 
@@ -142,6 +150,7 @@ public class GhostScript : MonoBehaviour
         {
             finalPosition = hit.position;
         }
+
         return finalPosition;
     }
 }
